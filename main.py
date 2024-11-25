@@ -16,7 +16,23 @@ def tokenize(code):
 
 # Recursive descent parser
 def parse(tokens):
+    def parse_program():
+        nodes = []
+        while index[0] < len(tokens):
+            nodes.append(parse_expression())
+        return nodes
+
     def parse_expression():
+        """Parse an expression, starting with a primary expression."""
+        left = parse_primary_expression()
+        while index[0] < len(tokens) and tokens[index[0]] in "+-*/":
+            operator = consume()  # Consume the operator
+            right = parse_primary_expression()
+            left = ASTNode("binary_op", operator, [left, right])  # Chain operations
+        return left
+
+    def parse_primary_expression():
+        """Parse a primary expression (e.g., literal, variable, or function call)."""
         token = tokens[index[0]]
         if token == "let":
             return parse_let()
@@ -26,8 +42,6 @@ def parse(tokens):
             return ASTNode("literal", int(consume()))
         elif re.match(r"\w+", token):  # Variable or function call
             return parse_identifier_or_call()
-        elif token in "+-*/":
-            return parse_binary_operation()
         else:
             raise SyntaxError(f"Unexpected token: {token}")
 
@@ -84,17 +98,24 @@ def parse(tokens):
         index[0] += 1
 
     index = [0]
-    return parse_expression()
+    return parse_program()
 
 class Interpreter:
     def __init__(self):
         self.environment = {}
 
-    def interpret(self, node):
+    def interpret(self, nodes):
+        results = []
+        for node in nodes:
+            result = self.interpret_node(node)
+            results.append(result)
+        return results
+
+    def interpret_node(self, node):
         if node.type == "let":
             # Process 'let' statements
             name = node.value
-            value = self.interpret(node.children[0])
+            value = self.interpret_node(node.children[0])
             self.environment[name] = value
             return value
 
@@ -123,20 +144,20 @@ class Interpreter:
             if func_name not in self.environment or not isinstance(self.environment[func_name], tuple):
                 raise NameError(f"Undefined function: {func_name}")
             params, body = self.environment[func_name]
-            args = [self.interpret(child) for child in node.children]
+            args = [self.interpret_node(child) for child in node.children]
             if len(params) != len(args):
                 raise TypeError(f"Function {func_name} expects {len(params)} arguments, got {len(args)}")
             # Temporary scope for function execution
             old_env = self.environment.copy()
             self.environment.update(zip(params, args))
-            result = self.interpret(body)
+            result = self.interpret_node(body)
             self.environment = old_env  # Restore previous environment
             return result
 
         elif node.type == "binary_op":
             # Process binary operations
-            left = self.interpret(node.children[0])
-            right = self.interpret(node.children[1])
+            left = self.interpret_node(node.children[0])
+            right = self.interpret_node(node.children[1])
             if node.value == "+":
                 return left + right
             elif node.value == "-":
@@ -160,7 +181,7 @@ if __name__ == "__main__":
     fn sub(a, b) = a - b
     
     add(x, 5)
-    sub(x, 5)
+    sub(x, 3)
     """
     tokens = tokenize(code)
     ast = parse(tokens)

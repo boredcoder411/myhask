@@ -17,21 +17,27 @@ def tokenize(code):
 # Recursive descent parser
 def parse(tokens):
     def parse_expression():
-        if tokens[index[0]] == "let":
+        token = tokens[index[0]]
+        if token == "let":
             return parse_let()
-        elif tokens[index[0]] == "fn":
+        elif token == "fn":
             return parse_function()
-        elif re.match(r"\w+", tokens[index[0]]):  # Variable or function call
-            return ASTNode("identifier", tokens[index[0]])
-        elif tokens[index[0]].isdigit():
-            return ASTNode("literal", int(tokens[index[0]]))
-        raise SyntaxError(f"Unexpected token: {tokens[index[0]]}")
+        elif token.isdigit():
+            return ASTNode("literal", int(consume()))
+        elif re.match(r"\w+", token):  # Variable or function call
+            return parse_identifier_or_call()
+        elif token in "+-*/":
+            return parse_binary_operation()
+        else:
+            raise SyntaxError(f"Unexpected token: {token}")
 
     def parse_let():
         match("let")
-        name = consume()
-        match("=")
-        expr = parse_expression()
+        if not re.match(r"\w+", tokens[index[0]]):
+            raise SyntaxError(f"Expected variable name after 'let', got '{tokens[index[0]]}'")
+        name = consume()  # Consume variable name
+        match("=")        # Ensure '=' follows
+        expr = parse_expression()  # Parse the expression after '='
         return ASTNode("let", name, [expr])
 
     def parse_function():
@@ -47,6 +53,25 @@ def parse(tokens):
         match("=")
         body = parse_expression()
         return ASTNode("function", name, [ASTNode("params", params), body])
+
+    def parse_identifier_or_call():
+        identifier = consume()
+        if index[0] < len(tokens) and tokens[index[0]] == "(":
+            match("(")
+            args = []
+            while tokens[index[0]] != ")":
+                args.append(parse_expression())
+                if tokens[index[0]] == ",":
+                    match(",")
+            match(")")
+            return ASTNode("call", identifier, args)
+        return ASTNode("identifier", identifier)
+
+    def parse_binary_operation():
+        left = parse_expression()
+        operator = consume()
+        right = parse_expression()
+        return ASTNode("binary_op", operator, [left, right])
 
     def consume():
         token = tokens[index[0]]
@@ -126,59 +151,21 @@ class Interpreter:
         else:
             raise ValueError(f"Unknown node type: {node.type}")
 
-# Example: AST construction for binary operations and function calls
-def enhance_parse(tokens):
-    def parse_expression():
-        token = tokens[index[0]]
-        if token.isdigit():
-            return ASTNode("literal", int(consume()))
-        elif re.match(r"\w+", token):
-            return parse_identifier_or_call()
-        elif token in "+-*/":
-            return parse_binary_operation()
-        raise SyntaxError(f"Unexpected token: {token}")
+# Example usage
+if __name__ == "__main__":
+    code = """
+    let x = 10
+    
+    fn add(a, b) = a + b
+    fn sub(a, b) = a - b
+    
+    add(x, 5)
+    sub(x, 5)
+    """
+    tokens = tokenize(code)
+    ast = parse(tokens)
+    print("AST:", ast)
 
-    def parse_identifier_or_call():
-        identifier = consume()
-        if index[0] < len(tokens) and tokens[index[0]] == "(":
-            match("(")
-            args = []
-            while tokens[index[0]] != ")":
-                args.append(parse_expression())
-                if tokens[index[0]] == ",":
-                    match(",")
-            match(")")
-            return ASTNode("call", identifier, args)
-        return ASTNode("identifier", identifier)
-
-    def parse_binary_operation():
-        left = parse_expression()
-        operator = consume()
-        right = parse_expression()
-        return ASTNode("binary_op", operator, [left, right])
-
-    def consume():
-        token = tokens[index[0]]
-        index[0] += 1
-        return token
-
-    def match(expected):
-        if tokens[index[0]] != expected:
-            raise SyntaxError(f"Expected '{expected}', got '{tokens[index[0]]}'")
-        index[0] += 1
-
-    index = [0]
-    return parse_expression()
-
-# Example code
-code = """
-fn add(x, y) = x + y
-let result = add(5, 7)
-"""
-tokens = tokenize(code)
-ast = parse(tokens)
-
-# Interpret the AST
-interpreter = Interpreter()
-result = interpreter.interpret(ast)
-print(f"Result: {result}")
+    interpreter = Interpreter()
+    result = interpreter.interpret(ast)
+    print(f"Result: {result}")

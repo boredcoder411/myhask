@@ -11,13 +11,10 @@ if __name__ == "__main__":
         fn add(a, b) = a + b
         fn multiply(a, b) = a * b
         
-        let result = add(x, y)
-        let product = multiply(x, y)
-        
-        if x >= y then
-            let message = "x is greater than or equal to y"
+        if add(x, y) >= multiply(x, y) then
+            let message = "Addition is greater"
         else
-            let message = "x is less than y"
+            let message = "Multiplication is greater"
         
         message
     """

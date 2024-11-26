@@ -11,7 +11,14 @@ class ASTNode:
 
 # Tokenize the input
 def tokenize(code):
-    tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*|\d+|[()\[\],=]|->|[+\-*/]|fn|let|if|then|else|match|->|\.\.\.|[{}]", code)
+    tokens = re.findall(
+        r'"[^"]*"|'                # Match strings in double quotes
+        r"[a-zA-Z_][a-zA-Z0-9_]*|" # Match identifiers
+        r"\d+|"                    # Match numbers
+        r"[(){}\[\],=]|"           # Match parentheses, braces, brackets, commas, equals
+        r"->|"                     # Match arrow operator
+        r"[+\-*/<>!]=?|=="          # Match comparison operators (>, <, >=, <=, ==, !=)
+    , code)
     return tokens
 
 # Recursive descent parser
@@ -25,6 +32,12 @@ def parse(tokens):
     def parse_expression():
         """Parse an expression, starting with a primary expression."""
         left = parse_primary_expression()
+        # Handle comparison operators like >, <, >=, <=, ==, !=
+        while index[0] < len(tokens) and tokens[index[0]] in [">", "<", ">=", "<=", "==", "!="]:
+            operator = consume()  # Consume the operator
+            right = parse_primary_expression()
+            left = ASTNode("comparison_op", operator, [left, right])  # Chain comparisons
+        # Handle arithmetic operators
         while index[0] < len(tokens) and tokens[index[0]] in "+-*/":
             operator = consume()  # Consume the operator
             right = parse_primary_expression()
@@ -38,8 +51,12 @@ def parse(tokens):
             return parse_let()
         elif token == "fn":
             return parse_function()
-        elif token.isdigit():
+        elif token == "if":
+            return parse_if()
+        elif token.isdigit():  # Numeric literal
             return ASTNode("literal", int(consume()))
+        elif token.startswith('"') and token.endswith('"'):  # String literal
+            return ASTNode("string", consume()[1:-1])  # Remove quotes
         elif re.match(r"\w+", token):  # Variable or function call
             return parse_identifier_or_call()
         else:
@@ -86,6 +103,15 @@ def parse(tokens):
         operator = consume()
         right = parse_expression()
         return ASTNode("binary_op", operator, [left, right])
+    
+    def parse_if():
+        match("if")
+        condition = parse_expression()
+        match("then")
+        then_expr = parse_expression()
+        match("else")
+        else_expr = parse_expression()
+        return ASTNode("if", None, [condition, then_expr, else_expr])
 
     def consume():
         token = tokens[index[0]]

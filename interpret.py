@@ -37,6 +37,10 @@ class Interpreter:
         elif node.type == "literal":
             # Process literals (numbers)
             return node.value
+    
+        elif node.type == "string":
+            # Process string literals
+            return node.value
 
         elif node.type == "call":
             # Process function calls
@@ -53,6 +57,35 @@ class Interpreter:
             result = self.interpret_node(body)
             self.environment = old_env  # Restore previous environment
             return result
+        
+        elif node.type == "if":
+            # Process 'if' statements
+            condition = self.interpret_node(node.children[0])
+            then_expr = node.children[1]
+            else_expr = node.children[2]
+            if condition:
+                return self.interpret_node(then_expr)
+            else:
+                return self.interpret_node(else_expr)
+        
+        elif node.type == "comparison_op":
+            # Process comparison operations
+            left = self.interpret_node(node.children[0])
+            right = self.interpret_node(node.children[1])
+            if node.value == ">":
+                return left > right
+            elif node.value == "<":
+                return left < right
+            elif node.value == ">=":
+                return left >= right
+            elif node.value == "<=":
+                return left <= right
+            elif node.value == "==":
+                return left == right
+            elif node.value == "!=":
+                return left != right
+            else:
+                raise ValueError(f"Unknown operator: {node.value}")
 
         elif node.type == "binary_op":
             # Process binary operations

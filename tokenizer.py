@@ -17,7 +17,7 @@ def tokenize(code):
         r"\d+|"                    # Match numbers
         r"[(){}\[\],=]|"           # Match parentheses, braces, brackets, commas, equals
         r"->|"                     # Match arrow operator
-        r"[+\-*/<>!]=?|=="          # Match comparison operators (>, <, >=, <=, ==, !=)
+        r"[+\-*/<>!]=?|=="         # Match comparison operators (>, <, >=, <=, ==, !=)
     , code)
     return tokens
 

@@ -1,4 +1,3 @@
-import re
 from tokenizer import tokenize, parse
 from interpret import Interpreter
 
@@ -12,11 +11,9 @@ if __name__ == "__main__":
         fn multiply(a, b) = a * b
         
         if add(x, y) >= multiply(x, y) then
-            let message = "Addition is greater"
+            "Addition is greater"
         else
-            let message = "Multiplication is greater"
-        
-        message
+            "Multiplication is greater"
     """
     tokens = tokenize(code)
     print("Tokens:", tokens)

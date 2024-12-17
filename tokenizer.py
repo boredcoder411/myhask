@@ -15,9 +15,11 @@ def tokenize(code):
         r'"[^"]*"|'                # Match strings in double quotes
         r"[a-zA-Z_][a-zA-Z0-9_]*|" # Match identifiers
         r"\d+|"                    # Match numbers
-        r"[(){}\[\],=]|"           # Match parentheses, braces, brackets, commas, equals
+        r"[(){}\[\],=:]|"          # Match parentheses, braces, brackets, commas, colons, equals
         r"->|"                     # Match arrow operator
+        r"match|_|"                # Add match and wildcard keywords
         r"[+\-*/<>!]=?|=="         # Match comparison operators (>, <, >=, <=, ==, !=)
+        r""
     , code)
     return tokens
 
@@ -53,6 +55,8 @@ def parse(tokens):
             return parse_function()
         elif token == "if":
             return parse_if()
+        elif token == "match":
+            return parse_match()
         elif token.isdigit():  # Numeric literal
             return ASTNode("literal", int(consume()))
         elif token.startswith('"') and token.endswith('"'):  # String literal
@@ -62,28 +66,55 @@ def parse(tokens):
         else:
             raise SyntaxError(f"Unexpected token: {token}")
 
-    def parse_let():
-        match("let")
-        if not re.match(r"\w+", tokens[index[0]]):
-            raise SyntaxError(f"Expected variable name after 'let', got '{tokens[index[0]]}'")
-        name = consume()  # Consume variable name
-        match("=")        # Ensure '=' follows
-        expr = parse_expression()  # Parse the expression after '='
-        return ASTNode("let", name, [expr])
-
     def parse_function():
-        match("fn")
-        name = consume()
-        match("(")
+        """Parse a function definition with static typing."""
+        match("fn")                      # Consume 'fn'
+        name = consume()                 # Consume function name
+        match("(")                       # Match '('
+        
         params = []
-        while tokens[index[0]] != ")":
-            params.append(consume())
+        while tokens[index[0]] != ")":   # Parse typed parameters
+            param_name = consume()       # Parameter name
+            match(":")                   # Match ':'
+            param_type = consume()       # Parameter type
+            params.append(ASTNode("param", param_name, [ASTNode("type", param_type)]))
+            
             if tokens[index[0]] == ",":
                 match(",")
-        match(")")
-        match("=")
-        body = parse_expression()
-        return ASTNode("function", name, [ASTNode("params", params), body])
+        match(")")                       # Match ')'
+        
+        # Parse return type
+        match("->")
+        return_type = consume()          # Return type annotation
+        
+        match("=")                       # Match '='
+        body = parse_expression()        # Parse function body
+        
+        return ASTNode("function", name, [
+            ASTNode("params", None, params),
+            ASTNode("return_type", return_type),
+            body
+        ])
+    
+    
+    def parse_let():
+        """Parse a variable declaration with static typing."""
+        match("let")                     # Consume 'let'
+        
+        if not re.match(r"\w+", tokens[index[0]]):
+            raise SyntaxError(f"Expected variable name after 'let', got '{tokens[index[0]]}'")
+        name = consume()                 # Consume variable name
+        
+        match(":")                       # Match ':'
+        var_type = consume()             # Type annotation
+        
+        match("=")                       # Ensure '=' follows
+        expr = parse_expression()        # Parse the expression after '='
+        
+        return ASTNode("let", name, [
+            ASTNode("type", var_type),
+            expr
+        ])
 
     def parse_identifier_or_call():
         identifier = consume()
@@ -112,6 +143,49 @@ def parse(tokens):
         match("else")
         else_expr = parse_expression()
         return ASTNode("if", None, [condition, then_expr, else_expr])
+
+    def parse_match():
+        """Parse a match expression."""
+        match("match")
+        # Parse the subject of the match
+        subject = parse_expression()
+        
+        # Collect case clauses
+        cases = []
+        match("{")
+        while tokens[index[0]] != "}":
+            # Parse the pattern (can be a literal, identifier, or wildcard)
+            pattern = parse_match_pattern()
+            match("->")
+            # Parse the expression to execute for this case
+            case_expr = parse_expression()
+            cases.append(ASTNode("case", None, [pattern, case_expr]))
+            
+            # Optional comma between cases
+            if tokens[index[0]] == ",":
+                match(",")
+        
+        match("}")
+        return ASTNode("match", None, [subject] + cases)
+
+    def parse_match_pattern():
+        """Parse a pattern for match expression."""
+        token = tokens[index[0]]
+        
+        # Literal (number or string)
+        if token.isdigit():
+            return ASTNode("literal", int(consume()))
+        elif token.startswith('"') and token.endswith('"'):
+            return ASTNode("string", consume()[1:-1])
+        # Wildcard pattern
+        elif token == "_":
+            consume()
+            return ASTNode("wildcard")
+        # Identifier pattern
+        elif re.match(r"\w+", token):
+            return ASTNode("identifier", consume())
+        else:
+            raise SyntaxError(f"Unexpected pattern: {token}")
 
     def consume():
         token = tokens[index[0]]
